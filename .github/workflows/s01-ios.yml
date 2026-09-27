@@ -1,0 +1,127 @@
+name: S-01 iOS build (unsigned .ipa)
+
+# Builds the S-01 spike for sideloading with a free Apple ID (SideStore/Sideloadly).
+# The .ipa is NOT signed here: SideStore signs it on the phone.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 's01-notificacoes/**'
+      - '.github/workflows/s01-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [basic, entitlements]
+    defaults:
+      run:
+        working-directory: s01-notificacoes
+    env:
+      S01_VARIANT: ${{ matrix.variant }}
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: s01-notificacoes/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Generate native iOS project (runs pod install)
+        run: npx expo prebuild --platform ios
+
+      # Free Apple IDs cannot use push notifications. Local notifications do not need
+      # the aps-environment entitlement, so it is removed to avoid signing failures.
+      - name: Prepare entitlements
+        run: |
+          ENT=$(ls ios/*/*.entitlements)
+          /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$ENT" || true
+          cp "$ENT" "$RUNNER_TEMP/app.entitlements"
+          cat "$ENT"
+
+      - name: Build app (unsigned, Release)
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          START=$(date +%s)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+          echo "xcodebuild took $(( $(date +%s) - START ))s" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Unsigned binaries carry no entitlements, and SideStore reads them from the binary.
+      # ldid embeds them without a certificate (T4/T5 need this).
+      - name: Embed entitlements (entitlements variant only)
+        if: matrix.variant == 'entitlements'
+        run: |
+          brew install ldid
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app)
+          EXE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist")
+          ldid -S"$RUNNER_TEMP/app.entitlements" "$APP/$EXE"
+          ldid -e "$APP/$EXE"
+
+      - name: Package .ipa
+        run: |
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry "S01-${S01_VARIANT}.ipa" Payload
+          ls -lh "S01-${S01_VARIANT}.ipa" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: S01-${{ matrix.variant }}
+          path: s01-notificacoes/S01-${{ matrix.variant }}.ipa
+          if-no-files-found: error
+
+  # Public release so the .ipa can be downloaded straight from the iPhone (Safari → Files → SideStore).
+  release:
+    needs: build
+    # Runs even if one variant fails: the basic build alone already covers the main tests.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List builds
+        run: ls -lh dist || true
+
+      - uses: softprops/action-gh-release@v2
+        if: hashFiles('dist/*.ipa') != ''
+        with:
+          tag_name: s01-build-${{ github.run_number }}
+          name: S-01 build ${{ github.run_number }}
+          prerelease: true
+          files: dist/*.ipa
+          body: |
+            Spike S-01 (notificações). Apps **sem assinatura**: instalar pelo SideStore.
+            - `S01-basic.ipa`: testes T1, T2, T3, T6, T7, T8
+            - `S01-entitlements.ipa`: testes T4 e T5 (time-sensitive e App Group)
