@@ -107,9 +107,14 @@ export const pendingCountAsync = async (): Promise<number> =>
 export const cancelAllAsync = (): Promise<void> =>
   Notifications.cancelAllScheduledNotificationsAsync();
 
+// Finding (S-01, run 1): on iOS, expo-notifications reports `notification.date` in SECONDS
+// (NotificationRecords.swift: timeIntervalSince1970), not milliseconds.
+const deliveredAt = (rawDate: number): Date =>
+  new Date(rawDate < 1e12 ? rawDate * 1000 : rawDate);
+
 export const recordResponse = (response: Notifications.NotificationResponse): void => {
   const label = String(response.notification.request.content.data?.label ?? '?');
-  const note = `${label} · entregue ${formatTime(new Date(response.notification.date))}`;
+  const note = `${label} · entregue ${formatTime(deliveredAt(response.notification.date))}`;
   const dedupeKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
   if (response.actionIdentifier === ACTION_REGISTER) insertRecord('action-register', note, dedupeKey);
   else if (response.actionIdentifier === ACTION_MISSED) insertRecord('action-missed', note, dedupeKey);
