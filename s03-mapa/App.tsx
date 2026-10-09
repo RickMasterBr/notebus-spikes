@@ -11,17 +11,20 @@ import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/config';
+import { ListaPacotes } from './src/ListaPacotes';
 import { PainelDownload } from './src/PainelDownload';
 import { Botao } from './src/ui';
 import { useDownload } from './src/useDownload';
 import { useInternet } from './src/useInternet';
 import { useLocalizacao } from './src/useLocalizacao';
+import { usePacotes } from './src/usePacotes';
 import { gerarPontos, QUANTIDADES, type QuantidadePontos } from './src/pontos';
 
 export default function App() {
   const [escuro, setEscuro] = useState(false);
   const [erroMapa, setErroMapa] = useState<string | null>(null);
-  const download = useDownload(() => {});
+  const lista = usePacotes();
+  const download = useDownload(lista.atualizar);
   const internet = useInternet();
   const camera = useRef<CameraRef>(null);
   const { permissao, posicaoAtual } = useLocalizacao();
@@ -115,6 +118,7 @@ export default function App() {
             setPontoTocado(null);
           }}
         />
+        <ListaPacotes pacotes={lista.pacotes} erro={lista.erro} />
         <PainelDownload
           estado={download.estado}
           aoBaixar={download.baixar}
