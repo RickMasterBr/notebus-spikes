@@ -7,11 +7,13 @@ import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/
 import { PainelDownload } from './src/PainelDownload';
 import { Botao } from './src/ui';
 import { useDownload } from './src/useDownload';
+import { useInternet } from './src/useInternet';
 
 export default function App() {
   const [escuro, setEscuro] = useState(false);
   const [erroMapa, setErroMapa] = useState<string | null>(null);
   const download = useDownload(() => {});
+  const internet = useInternet();
 
   const alternarEstilo = () => {
     setErroMapa(null);
@@ -20,6 +22,9 @@ export default function App() {
 
   return (
     <View style={styles.tela}>
+      <View style={[styles.topo, internet === 'SEM internet' ? styles.topoOffline : styles.topoOnline]}>
+        <Text style={styles.topoTexto}>Rede: {internet}</Text>
+      </View>
       <Map
         style={styles.mapa}
         mapStyle={escuro ? ESTILO_ESCURO : ESTILO_CLARO}
@@ -50,6 +55,10 @@ export default function App() {
 
 const styles = StyleSheet.create({
   tela: { flex: 1 },
+  topo: { paddingTop: 48, paddingBottom: 8, paddingHorizontal: 12 },
+  topoOnline: { backgroundColor: '#15803d' },
+  topoOffline: { backgroundColor: '#b91c1c' },
+  topoTexto: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   mapa: { flex: 1 },
   painel: { maxHeight: 280, backgroundColor: '#ffffff' },
   painelConteudo: { padding: 12, gap: 8 },
