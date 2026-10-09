@@ -1,8 +1,13 @@
 name: S-03 iOS build (unsigned .ipa)
 
 # Spike S-03 (mapa offline). Mesmo molde do S-01: .ipa SEM assinatura, o SideStore assina no iPhone.
-# So roda a mao (workflow_dispatch): uma vez por tentativa.
+# Roda no push da branch do spike (workflow_dispatch so funciona com o arquivo na main).
 on:
+  push:
+    branches: [claude/funny-ramanujan-aol8gp]
+    paths:
+      - 's03-mapa/**'
+      - '.github/workflows/s03-ios.yml'
   workflow_dispatch:
 
 permissions:
@@ -77,3 +82,25 @@ jobs:
           name: S03-mapa
           path: s03-mapa/S03-mapa.ipa
           if-no-files-found: error
+
+  # Release publica para baixar o .ipa direto do iPhone (Safari, SideStore), como no S-01.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List builds
+        run: ls -lh dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: s03-build-${{ github.run_number }}
+          name: S-03 build ${{ github.run_number }}
+          prerelease: true
+          files: dist/*.ipa
+          body: |
+            Spike S-03 (mapa offline). App **sem assinatura**: instalar pelo SideStore.
