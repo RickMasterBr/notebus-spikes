@@ -1,0 +1,79 @@
+name: S-03 iOS build (unsigned .ipa)
+
+# Spike S-03 (mapa offline). Mesmo molde do S-01: .ipa SEM assinatura, o SideStore assina no iPhone.
+# So roda a mao (workflow_dispatch): uma vez por tentativa.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: s03-mapa
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hash e data do build
+        run: |
+          echo "S03_COMMIT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "S03_BUILD_DATE=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: s03-mapa/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # O plugin do MapLibre ajusta o Podfile (pacote nativo via Swift Package Manager).
+      - name: Generate native iOS project (runs pod install)
+        run: npx expo prebuild --platform ios
+
+      - name: Build app (unsigned, Release)
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package .ipa
+        run: |
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry S03-mapa.ipa Payload
+          echo "Build total: $(( ($(date +%s) - BUILD_START) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -lh S03-mapa.ipa | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: S03-mapa
+          path: s03-mapa/S03-mapa.ipa
+          if-no-files-found: error

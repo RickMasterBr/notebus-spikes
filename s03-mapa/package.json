@@ -1,0 +1,24 @@
+{
+  "name": "s03-mapa",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@maplibre/maplibre-react-native": "11.5.0",
+    "expo": "~57.0.25",
+    "expo-constants": "~57.0.19",
+    "expo-location": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.0",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios"
+  },
+  "private": true
+}
