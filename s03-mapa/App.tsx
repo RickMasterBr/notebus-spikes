@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import Constants from 'expo-constants';
+
 import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/config';
 import { ListaPacotes } from './src/ListaPacotes';
 import { PainelDownload } from './src/PainelDownload';
@@ -19,6 +21,8 @@ import { useInternet } from './src/useInternet';
 import { useLocalizacao } from './src/useLocalizacao';
 import { usePacotes } from './src/usePacotes';
 import { gerarPontos, QUANTIDADES, type QuantidadePontos } from './src/pontos';
+
+const { commit, buildDate } = Constants.expoConfig?.extra ?? {};
 
 export default function App() {
   const [escuro, setEscuro] = useState(false);
@@ -125,6 +129,9 @@ export default function App() {
           aoApagar={download.apagarTudo}
         />
       </ScrollView>
+      <Text style={styles.rodape}>
+        Build {String(commit ?? 'local')} | {String(buildDate ?? 'sem data')}
+      </Text>
       <StatusBar style="auto" />
     </View>
   );
@@ -142,5 +149,13 @@ const styles = StyleSheet.create({
   linhaBotoes: { flexDirection: 'row', gap: 8 },
   celula: { flex: 1 },
   aviso: { color: '#111827', fontSize: 15 },
+  rodape: {
+    backgroundColor: '#111827',
+    color: '#ffffff',
+    fontSize: 13,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 24,
+  },
   erro: { color: '#b91c1c', fontSize: 16 },
 });
