@@ -1,6 +1,6 @@
-import { Camera, Map } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/config';
@@ -8,12 +8,16 @@ import { PainelDownload } from './src/PainelDownload';
 import { Botao } from './src/ui';
 import { useDownload } from './src/useDownload';
 import { useInternet } from './src/useInternet';
+import { gerarPontos, QUANTIDADES, type QuantidadePontos } from './src/pontos';
 
 export default function App() {
   const [escuro, setEscuro] = useState(false);
   const [erroMapa, setErroMapa] = useState<string | null>(null);
   const download = useDownload(() => {});
   const internet = useInternet();
+  const [quantidade, setQuantidade] = useState<QuantidadePontos | null>(null);
+  const [pontoTocado, setPontoTocado] = useState<string | null>(null);
+  const pontos = useMemo(() => (quantidade ? gerarPontos(quantidade) : null), [quantidade]);
 
   const alternarEstilo = () => {
     setErroMapa(null);
@@ -24,6 +28,10 @@ export default function App() {
     <View style={styles.tela}>
       <View style={[styles.topo, internet === 'SEM internet' ? styles.topoOffline : styles.topoOnline]}>
         <Text style={styles.topoTexto}>Rede: {internet}</Text>
+        <Text style={styles.topoTexto}>
+          Ponto tocado: {pontoTocado ?? 'nenhum'}
+          {quantidade ? ` | ${quantidade} pontos` : ''}
+        </Text>
       </View>
       <Map
         style={styles.mapa}
@@ -34,6 +42,30 @@ export default function App() {
         }
       >
         <Camera initialViewState={{ center: CENTRO_LEIRIA, zoom: ZOOM_INICIAL }} />
+        {pontos ? (
+          <GeoJSONSource
+            id="pontos-teste"
+            data={pontos}
+            hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            onPress={(evento) => {
+              const alvo = evento.nativeEvent.features[0]?.properties?.id;
+              setPontoTocado(typeof alvo === 'string' ? alvo : null);
+            }}
+          >
+            <Layer
+              id="pontos-circulos"
+              type="circle"
+              paint={{
+                'circle-radius': 9,
+                'circle-color': '#dc2626',
+                // Forma, nao so cor: cheio = opaco; vazado = so o contorno.
+                'circle-opacity': ['case', ['get', 'cheio'], 1, 0],
+                'circle-stroke-width': 3,
+                'circle-stroke-color': '#7f1d1d',
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
       </Map>
 
       <ScrollView style={styles.painel} contentContainerStyle={styles.painelConteudo}>
@@ -41,6 +73,20 @@ export default function App() {
         <Botao
           titulo={`Estilo: ${escuro ? 'escuro' : 'claro'} (toque para alternar)`}
           aoTocar={alternarEstilo}
+        />
+        <View style={styles.linhaBotoes}>
+          {QUANTIDADES.map((valor) => (
+            <View key={valor} style={styles.celula}>
+              <Botao titulo={`${valor} pontos`} aoTocar={() => setQuantidade(valor)} />
+            </View>
+          ))}
+        </View>
+        <Botao
+          titulo="Tirar pontos"
+          aoTocar={() => {
+            setQuantidade(null);
+            setPontoTocado(null);
+          }}
         />
         <PainelDownload
           estado={download.estado}
@@ -62,5 +108,7 @@ const styles = StyleSheet.create({
   mapa: { flex: 1 },
   painel: { maxHeight: 280, backgroundColor: '#ffffff' },
   painelConteudo: { padding: 12, gap: 8 },
+  linhaBotoes: { flexDirection: 'row', gap: 8 },
+  celula: { flex: 1 },
   erro: { color: '#b91c1c', fontSize: 16 },
 });

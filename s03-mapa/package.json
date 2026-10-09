@@ -12,7 +12,7 @@
     "react-native": "0.86.3"
   },
   "devDependencies": {
-    "@types/geojson": "^7946.0.0",
+    "@types/geojson": "^7946.0.16",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
