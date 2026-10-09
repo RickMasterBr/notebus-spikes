@@ -1,6 +1,13 @@
-import { Camera, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native';
+import {
+  Camera,
+  type CameraRef,
+  GeoJSONSource,
+  Layer,
+  Map,
+  UserLocation,
+} from '@maplibre/maplibre-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/config';
@@ -8,6 +15,7 @@ import { PainelDownload } from './src/PainelDownload';
 import { Botao } from './src/ui';
 import { useDownload } from './src/useDownload';
 import { useInternet } from './src/useInternet';
+import { useLocalizacao } from './src/useLocalizacao';
 import { gerarPontos, QUANTIDADES, type QuantidadePontos } from './src/pontos';
 
 export default function App() {
@@ -15,9 +23,22 @@ export default function App() {
   const [erroMapa, setErroMapa] = useState<string | null>(null);
   const download = useDownload(() => {});
   const internet = useInternet();
+  const camera = useRef<CameraRef>(null);
+  const { permissao, posicaoAtual } = useLocalizacao();
+  const [avisoLocal, setAvisoLocal] = useState<string | null>(null);
   const [quantidade, setQuantidade] = useState<QuantidadePontos | null>(null);
   const [pontoTocado, setPontoTocado] = useState<string | null>(null);
   const pontos = useMemo(() => (quantidade ? gerarPontos(quantidade) : null), [quantidade]);
+
+  const irParaMim = async () => {
+    setAvisoLocal(null);
+    const posicao = await posicaoAtual();
+    if (!posicao) {
+      setAvisoLocal('Sem posicao: permissao negada ou sinal indisponivel. O resto do app segue normal.');
+      return;
+    }
+    camera.current?.flyTo({ center: posicao, zoom: 16, duration: 1000 });
+  };
 
   const alternarEstilo = () => {
     setErroMapa(null);
@@ -41,7 +62,8 @@ export default function App() {
           setErroMapa(`Nao carregou o estilo ${escuro ? 'escuro' : 'claro'}.`)
         }
       >
-        <Camera initialViewState={{ center: CENTRO_LEIRIA, zoom: ZOOM_INICIAL }} />
+        <Camera ref={camera} initialViewState={{ center: CENTRO_LEIRIA, zoom: ZOOM_INICIAL }} />
+        {permissao === 'liberada' ? <UserLocation /> : null}
         {pontos ? (
           <GeoJSONSource
             id="pontos-teste"
@@ -74,6 +96,11 @@ export default function App() {
           titulo={`Estilo: ${escuro ? 'escuro' : 'claro'} (toque para alternar)`}
           aoTocar={alternarEstilo}
         />
+        <Botao titulo="Onde estou" aoTocar={irParaMim} />
+        <Text style={styles.aviso}>
+          Localizacao: {permissao === 'liberada' ? 'liberada' : permissao === 'negada' ? 'negada' : 'pedindo'}
+        </Text>
+        {avisoLocal ? <Text style={styles.erro}>{avisoLocal}</Text> : null}
         <View style={styles.linhaBotoes}>
           {QUANTIDADES.map((valor) => (
             <View key={valor} style={styles.celula}>
@@ -110,5 +137,6 @@ const styles = StyleSheet.create({
   painelConteudo: { padding: 12, gap: 8 },
   linhaBotoes: { flexDirection: 'row', gap: 8 },
   celula: { flex: 1 },
+  aviso: { color: '#111827', fontSize: 15 },
   erro: { color: '#b91c1c', fontSize: 16 },
 });
