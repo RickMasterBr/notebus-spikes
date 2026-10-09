@@ -1,13 +1,17 @@
 import { Camera, Map } from '@maplibre/maplibre-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CENTRO_LEIRIA, ESTILO_CLARO, ESTILO_ESCURO, ZOOM_INICIAL } from './src/config';
+import { PainelDownload } from './src/PainelDownload';
+import { Botao } from './src/ui';
+import { useDownload } from './src/useDownload';
 
 export default function App() {
   const [escuro, setEscuro] = useState(false);
   const [erroMapa, setErroMapa] = useState<string | null>(null);
+  const download = useDownload(() => {});
 
   const alternarEstilo = () => {
     setErroMapa(null);
@@ -27,14 +31,18 @@ export default function App() {
         <Camera initialViewState={{ center: CENTRO_LEIRIA, zoom: ZOOM_INICIAL }} />
       </Map>
 
-      <View style={styles.painel}>
+      <ScrollView style={styles.painel} contentContainerStyle={styles.painelConteudo}>
         {erroMapa ? <Text style={styles.erro}>{erroMapa}</Text> : null}
-        <Pressable style={styles.botao} onPress={alternarEstilo}>
-          <Text style={styles.botaoTexto}>
-            Estilo: {escuro ? 'escuro' : 'claro'} (toque para alternar)
-          </Text>
-        </Pressable>
-      </View>
+        <Botao
+          titulo={`Estilo: ${escuro ? 'escuro' : 'claro'} (toque para alternar)`}
+          aoTocar={alternarEstilo}
+        />
+        <PainelDownload
+          estado={download.estado}
+          aoBaixar={download.baixar}
+          aoApagar={download.apagarTudo}
+        />
+      </ScrollView>
       <StatusBar style="auto" />
     </View>
   );
@@ -43,8 +51,7 @@ export default function App() {
 const styles = StyleSheet.create({
   tela: { flex: 1 },
   mapa: { flex: 1 },
-  painel: { padding: 12, gap: 8, backgroundColor: '#ffffff' },
-  botao: { backgroundColor: '#1d4ed8', padding: 16, borderRadius: 10, alignItems: 'center' },
-  botaoTexto: { color: '#ffffff', fontSize: 17, fontWeight: '600' },
+  painel: { maxHeight: 280, backgroundColor: '#ffffff' },
+  painelConteudo: { padding: 12, gap: 8 },
   erro: { color: '#b91c1c', fontSize: 16 },
 });
